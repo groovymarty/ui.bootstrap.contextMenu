@@ -205,9 +205,14 @@
               });
             };
 
+            // mhs for touch screen you get mouseover event before click event
+            // mouseover event will open child menu, so we don't want click handler to toggle it off again
+            var justOpened = false; //mhs added
             $li.on('click', function ($event) {
               if($event.which == 1) {
                 $event.preventDefault();
+                // mhs click that opens child menu might also select something in the menu, so suppress it
+                $event.stopPropagation(); //mhs added
                 $scope.$apply(function () {
 
                   var cleanupFunction = function () {
@@ -225,6 +230,11 @@
                     if(res === undefined || res) {
                       cleanupFunction();
                     }
+                  } else if (nestedMenu) { //mhs added click to toggle child menu on/off
+                    if (!justOpened && !removeContextMenus(level + 1)) { //mhs added
+                      openNestedMenu($event); //mhs added
+                    }
+                    justOpened = false; //mhs added
                   } else {
                     cleanupFunction();
                   }
@@ -236,6 +246,7 @@
               $scope.$apply(function () {
                 if (nestedMenu) {
                   openNestedMenu($event);
+                  justOpened = true; //mhs added
                 } else {
                   removeContextMenus(level + 1);
                 }
@@ -422,6 +433,14 @@
             } else {
               if (leftCoordinate > menuWidth && winWidth - leftCoordinate - padding < menuWidth) {
                 leftCoordinate = winWidth - menuWidth - padding;
+                // mhs the following moves the child menu farther to the left when
+                // you are close to the right edge of the screen
+                if (level && (event.pageX - leftCoordinate) > menuWidth) { //mhs added
+                  leftCoordinate -= (menuWidth - padding*2); //mhs added
+                  if (leftCoordinate < 0) { //mhs added
+                    leftCoordinate = 0; //mhs added
+                  }
+                }
               } else if(winWidth - leftCoordinate < menuWidth) {
                 var reduceThresholdX = 5;
                 if(leftCoordinate < reduceThresholdX + padding) {
@@ -477,7 +496,10 @@
          * are removed.
          */
         function removeContextMenus (level) {
+          // mhs return true if any menus were removed
+          var result = false; //mhs added
           while (_contextMenus.length && (!level || _contextMenus.length > level)) {
+            result = true; //mhs added
             var cm = _contextMenus.pop();
             $rootScope.$broadcast(ContextMenuEvents.ContextMenuClosed, { context: _clickedElement, contextMenu: cm });
             cm.remove();
@@ -485,6 +507,7 @@
           if(!level) {
             $rootScope.$broadcast(ContextMenuEvents.ContextMenuAllClosed, { context: _clickedElement });
           }
+          return result; //mhs added
         }
 
         function removeOnScrollEvent(e) {
@@ -577,6 +600,8 @@
               if(isTouchDevice() && element.attr('draggable') === 'true') {
                 return false;
               }
+              
+              removeAllContextMenus(); //mhs added, prevent double menus
 
               // Remove if the user clicks outside
               $document.find('body').on('mousedown', removeOnOutsideClickEvent);
